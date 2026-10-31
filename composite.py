@@ -12,6 +12,50 @@ def load(path):
     return ImageOps.exif_transpose(Image.open(path)).convert('RGB')
 
 
+def resolve_inputs(paths, subject=None, background=None, input_dir=None):
+    """Resolve arbitrary names without guessing which photograph is the person."""
+    if paths:
+        if len(paths) != 2 or subject or background or input_dir:
+            raise ValueError('Provide two paths in subject/background order, or use named options')
+        subject, background = paths
+    elif input_dir:
+        candidates = []
+        for path in sorted(Path(input_dir).iterdir()):
+            if path.is_file():
+                try:
+                    with Image.open(path) as im:
+                        im.verify()
+                    candidates.append(path.resolve())
+                except (OSError, ValueError):
+                    continue
+        def select(value):
+            if value is None:
+                return None
+            path = Path(value)
+            return (path if path.is_absolute() else Path(input_dir)/path).resolve()
+        subject, background = select(subject), select(background)
+        for selected in (subject, background):
+            if selected is not None and selected not in candidates:
+                raise ValueError(f'Not a readable image in the input directory: {selected}')
+        if len(candidates) == 2 and (subject is None) != (background is None):
+            remaining = next(p for p in candidates if p != (subject or background))
+            subject, background = subject or remaining, background or remaining
+        if not subject or not background:
+            raise ValueError('Specify --subject and/or --background to assign roles; '
+                             'with exactly two images, one role is enough. Found: '
+                             + ', '.join(p.name for p in candidates))
+    else:
+        subject = subject or 'subject.jpg'
+        background = background or 'background.jpg'
+    if Path(subject).resolve() == Path(background).resolve():
+        raise ValueError('Subject and background must be different files')
+    for path in (subject, background):
+        if not Path(path).is_file():
+            raise ValueError(f'Image file not found: {path}. Pass any filenames as '
+                             'SUBJECT BACKGROUND; chat image previews are not local files.')
+    return str(subject), str(background)
+
+
 def extract(image, rect, trimap_path=None, edge_width=4):
     from pymatting import estimate_alpha_cf, estimate_foreground_ml
     rgb = np.asarray(image)
@@ -77,8 +121,10 @@ def render(background, rgb, alpha, p):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--subject', default='subject.jpg')
-    parser.add_argument('--background', default='background.jpg')
+    parser.add_argument('images', nargs='*', help='Any two image paths, in subject/background order')
+    parser.add_argument('--subject', help='Subject image path (any filename)')
+    parser.add_argument('--background', help='Background image path (any filename)')
+    parser.add_argument('--input-dir', help='Folder of images; select one role when it contains exactly two')
     parser.add_argument('--out', default='output')
     parser.add_argument('--rect', nargs=4, type=int)
     parser.add_argument('--trimap')
@@ -87,6 +133,10 @@ def main():
     args = parser.parse_args()
     if args.edge_width < 1:
         parser.error('--edge-width must be positive')
+    try:
+        args.subject, args.background = resolve_inputs(args.images, args.subject, args.background, args.input_dir)
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
     subject, background = load(args.subject), load(args.background)
     p = dict(x=background.width/2, y=background.height/2, scale=1., rotation=0., brightness=1., contrast=1., saturation=1., rgb_gain=[1.,1.,1.])
     if args.params:

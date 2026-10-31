@@ -24,7 +24,7 @@ def test_cli_exports(tmp_path):
     import subprocess
     import sys
     import json
-    bg=tmp_path/'background.jpg'; src=tmp_path/'subject.jpg'; tri=tmp_path/'trimap.png'
+    bg=tmp_path/'Market scene 12.jpeg'; src=tmp_path/'Portrait (original).jpeg'; tri=tmp_path/'trimap.png'
     Image.new('RGB',(64,80),(70,90,110)).save(bg)
     a=np.full((32,32,3),[20,40,60],np.uint8); a[8:24,8:24]=[170,110,90]
     Image.fromarray(a).save(src)
@@ -36,3 +36,17 @@ def test_cli_exports(tmp_path):
     assert Image.open(out/'subject.png').mode == 'RGBA'
     assert Image.open(out/'mask.png').size == (32,32)
     assert json.loads((out/'parameters.json').read_text())['scale'] == 1
+
+def test_arbitrary_filenames_and_directory_selection(tmp_path):
+    from composite import resolve_inputs
+    import pytest
+    portrait=tmp_path/'My portrait (2).photo'
+    scene=tmp_path/'IMG_9384'
+    Image.new('RGB',(8,8)).save(portrait,format='PNG')
+    Image.new('RGB',(8,8)).save(scene,format='JPEG')
+    assert resolve_inputs([str(portrait),str(scene)]) == (str(portrait),str(scene))
+    assert resolve_inputs([],subject=portrait.name,input_dir=tmp_path) == (str(portrait),str(scene))
+    with pytest.raises(ValueError,match='assign roles'):
+        resolve_inputs([],input_dir=tmp_path)
+    with pytest.raises(ValueError,match='different files'):
+        resolve_inputs([str(scene),str(scene)])

@@ -13,7 +13,17 @@ python3 -m venv .venv
 .venv/bin/python -m pytest -q
 ```
 
-Place the original photographs at `subject.jpg` and `background.jpg`. They are ignored by Git; do not commit private photos. EXIF orientation is applied; EXIF/GPS metadata is omitted from exports. Convert unusual colour profiles to sRGB in your photo editor first; this workflow assumes sRGB input. No resizing of the background occurs. Keep the largest available originals; the displayed attachments are 768 × 1024.
+Use any filenames; renaming is unnecessary. For example:
+
+```sh
+.venv/bin/python composite.py "My portrait.jpeg" "IMG_1234.png" --rect 1 290 550 734
+# Or select the subject in a folder containing exactly two images:
+.venv/bin/python composite.py --input-dir /path/to/photos --subject "My portrait.jpeg" --rect 1 290 550 734
+```
+
+The positional order is subject then background. Explicit `--subject PATH --background PATH` also works. Folder discovery reads image contents regardless of extension; it requires a role selection rather than guessing which image is the subject. With no input options, the legacy defaults are `subject.jpg` and `background.jpg`. Chat previews must first be made available as actual files.
+
+Private inputs should be kept outside the checkout or in an ignored folder such as `inputs/`. They are ignored by Git; do not commit private photos. EXIF orientation is applied; EXIF/GPS metadata is omitted from exports. Convert unusual colour profiles to sRGB in your photo editor first; this workflow assumes sRGB input. No resizing of the background occurs. Keep the largest available originals; the displayed attachments are 768 × 1024.
 
 ## First extraction
 
